@@ -11,7 +11,14 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v3
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Create ZIP package for Azure App Service
+        run: |
+          cd carbon-footprint-fastapi
+          zip -r ../app.zip .
+          cd ..
 
       - name: Azure Login
         uses: azure/login@v1
@@ -22,4 +29,4 @@ jobs:
         uses: azure/webapps-deploy@v2
         with:
           app-name: ${{ github.ref == 'refs/heads/main' && secrets.AZURE_WEBAPP_NAME_PRO || secrets.AZURE_WEBAPP_NAME_PRE }}
-          package: src
+          package: app.zip
