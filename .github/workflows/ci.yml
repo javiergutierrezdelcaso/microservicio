@@ -1,0 +1,31 @@
+name: Microservice CI
+
+on:
+  push:
+    branches:
+      - develop
+  pull_request:
+    branches:
+      - develop
+      - main
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Install PowerShell
+        uses: PowerShell/PowerShell-For-GitHub-Actions@v1
+
+      - name: Install Pode & Pester
+        shell: pwsh
+        run: |
+          Install-Module Pode -Force
+          Install-Module Pester -Force
+
+      - name: Run Pester Tests
+        shell: pwsh
+        run: |
+          Invoke-Pester ./tests/EcoAnalyzer.Tests.ps1 -Passthru
