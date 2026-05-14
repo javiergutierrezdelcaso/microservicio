@@ -37,6 +37,7 @@ jobs:
           pip install -r ecoanalyzer/requirements.txt
           pip install black isort flake8 bandit pytest pytest-cov
 
+          
       - name: Black (format check)
         run: black --check ecoanalyzer/
 
