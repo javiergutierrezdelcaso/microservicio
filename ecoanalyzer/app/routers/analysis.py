@@ -5,6 +5,7 @@ router = APIRouter(
     tags=["analysis"]
 )
 
+
 @router.get("")
 def analyze():
     # Aquí luego puedes meter lógica real de análisis ecológico
