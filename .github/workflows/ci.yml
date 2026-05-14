@@ -2,9 +2,13 @@ name: Microservice CI
 
 on:
   push:
-    branches: [develop]
+    branches:
+      - develop
+      - 'feature/**'
   pull_request:
-    branches: [develop, main]
+    branches:
+      - develop
+      - main
 
 jobs:
   test:
@@ -12,10 +16,10 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: Set up Python
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v5
         with:
           python-version: "3.10"
 
@@ -35,7 +39,7 @@ jobs:
         run: pytest tests --cov=app --cov-report=xml
 
       - name: Upload coverage report
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: coverage-report
           path: coverage.xml
@@ -46,19 +50,17 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: Build Docker image
-        run: |
-          docker build -t ecoanalyzer:${{ github.sha }} .
+        run: docker build -t ecoanalyzer:${{ github.sha }} .
 
       - name: Save Docker image as artifact
         run: |
           docker save ecoanalyzer:${{ github.sha }} | gzip > ecoanalyzer.tar.gz
 
       - name: Upload Docker artifact
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: ecoanalyzer-image
           path: ecoanalyzer.tar.gz
-
