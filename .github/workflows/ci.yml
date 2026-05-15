@@ -1,31 +1,75 @@
-name: Microservice CI
+name: CI - Ecoanalyzer (Pro)
 
 on:
   push:
     branches:
       - develop
+      - 'feature/**'
   pull_request:
     branches:
       - develop
       - main
 
 jobs:
-  test:
+  lint-test-build:
     runs-on: ubuntu-latest
-
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+      
     steps:
-      - uses: actions/checkout@v3
+      - name: Checkout
+        uses: actions/checkout@v4
 
-      - name: Install PowerShell
-        uses: PowerShell/PowerShell-For-GitHub-Actions@v1
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
 
-      - name: Install Pode & Pester
-        shell: pwsh
+      - name: Cache pip
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('ecoanalyzer/requirements.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-
+
+      - name: Install dependencies
         run: |
-          Install-Module Pode -Force
-          Install-Module Pester -Force
+          python -m pip install --upgrade pip
+          pip install -r ecoanalyzer/requirements.txt
+          pip install black isort flake8 bandit pytest pytest-cov
 
-      - name: Run Pester Tests
-        shell: pwsh
+
+      - name: Black (format check)
+        run: black --check ecoanalyzer/
+
+      - name: isort (import order check)
+        run: isort --check-only ecoanalyzer/
+
+      - name: flake8 (lint)
+        run: flake8 ecoanalyzer/
+
+      - name: Bandit (security scan)
+        run: bandit -r ecoanalyzer/app
+
+      - name: Run tests with coverage
+        run: pytest ecoanalyzer/tests --cov=ecoanalyzer/app --cov-report=xml
+
+      - name: Upload coverage report
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report
+          path: coverage.xml
+
+      - name: Build Docker image
+        run: docker build -t ecoanalyzer:${{ github.sha }} .
+
+      - name: Save Docker image as artifact
         run: |
-          Invoke-Pester ./tests/EcoAnalyzer.Tests.ps1 -Passthru
+          docker save ecoanalyzer:${{ github.sha }} | gzip > ecoanalyzer.tar.gz
+
+      - name: Upload Docker artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ecoanalyzer-image
+          path: ecoanalyzer.tar.gz
