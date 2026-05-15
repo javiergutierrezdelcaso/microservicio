@@ -13,7 +13,9 @@ on:
 jobs:
   lint-test-build:
     runs-on: ubuntu-latest
-
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+      
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -37,7 +39,7 @@ jobs:
           pip install -r ecoanalyzer/requirements.txt
           pip install black isort flake8 bandit pytest pytest-cov
 
-          
+
       - name: Black (format check)
         run: black --check ecoanalyzer/
 

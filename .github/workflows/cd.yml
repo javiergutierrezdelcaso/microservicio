@@ -1,4 +1,4 @@
-name: Microservice CD
+name: Microservice CD (Docker)
 
 on:
   push:
@@ -14,19 +14,35 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v3
 
-      - name: Create ZIP package for Azure App Service
+      - name: Select environment
+        id: env
         run: |
-          cd carbon-footprint-fastapi
-          zip -r ../app.zip .
-          cd ..
+          if [[ "${GITHUB_REF_NAME}" == "develop" ]]; then
+            echo "app=${{ secrets.AZURE_WEBAPP_NAME_PRE }}" >> $GITHUB_OUTPUT
+            echo "tag=pre" >> $GITHUB_OUTPUT
+          else
+            echo "app=${{ secrets.AZURE_WEBAPP_NAME_PRO }}" >> $GITHUB_OUTPUT
+            echo "tag=pro" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Log in to GHCR
+        run: echo "${{ secrets.GHCR_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+
+      - name: Build Docker image
+        run: |
+          docker build -t ghcr.io/${{ github.repository }}/ecoanalyzer:${{ steps.env.outputs.tag }} .
+
+      - name: Push Docker image
+        run: |
+          docker push ghcr.io/${{ github.repository }}/ecoanalyzer:${{ steps.env.outputs.tag }}
 
       - name: Azure Login
         uses: azure/login@v1
         with:
           creds: ${{ secrets.AZURE_CREDENTIALS }}
 
-      - name: Deploy to Azure App Service
+      - name: Deploy container to Azure App Service
         uses: azure/webapps-deploy@v2
         with:
-          app-name: ${{ github.ref == 'refs/heads/main' && secrets.AZURE_WEBAPP_NAME_PRO || secrets.AZURE_WEBAPP_NAME_PRE }}
-          package: app.zip
+          app-name: ${{ steps.env.outputs.app }}
+          images: ghcr.io/${{ github.repository }}/ecoanalyzer:${{ steps.env.outputs.tag }}
