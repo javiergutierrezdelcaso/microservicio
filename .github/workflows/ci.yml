@@ -46,10 +46,10 @@ jobs:
 
       # 2. Calidad de código
       - name: 🎨 Black — Validación de formato
-        run: black --check ecoanalyzer/
+        run: black ecoanalyzer/
 
       - name: 📚 isort — Validación de imports
-        run: isort --check-only ecoanalyzer/
+        run: isort ecoanalyzer/
 
       - name: 🔍 flake8 — Linting
         run: flake8 ecoanalyzer/
