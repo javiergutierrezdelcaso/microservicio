@@ -12,11 +12,11 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir --upgrade \
     pip==25.2 \
     setuptools==80.9.0 \
+    && pip install --no-cache-dir -r requirements.txt \
     && pip uninstall -y wheel jaraco.context || true \
     && pip install --no-cache-dir \
         wheel==0.46.2 \
-        jaraco.context==6.1.0 \
-    && pip install --no-cache-dir -r requirements.txt
+        jaraco.context==6.1.0
 
 COPY . .
 
