@@ -1,40 +1,36 @@
-from fastapi import FastAPI
-from fastapi.staticfiles import StaticFiles
-from pathlib import Path
-import os
+from ecoanalyzer.app.main import app
+from fastapi.testclient import TestClient
 
-app = FastAPI()
-
-BASE_DIR = Path(__file__).resolve().parent
-STATIC_DIR = BASE_DIR / "static"
-STATIC_DIR.mkdir(exist_ok=True)
-
-app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
+client = TestClient(app)
 
 
-@app.get("/")
-def root():
-    return {
-        "service": "ecoanalyzer",
-        "status": "running",
-        "environment": os.getenv("ENVIRONMENT", "unknown"),
-        "version": os.getenv("IMAGE_TAG", "latest"),
-    }
+def test_root():
+    response = client.get("/")
+
+    assert response.status_code == 200
+
+    data = response.json()
+
+    assert data["service"] == "ecoanalyzer"
+    assert data["status"] == "running"
 
 
-@app.get("/health")
-def health():
-    return {
-        "status": "ok"
-    }
+def test_health():
+    response = client.get("/health")
+
+    assert response.status_code == 200
+    assert response.json() == {"status": "ok"}
 
 
-@app.get("/analysis")
-def analysis():
-    return {
-        "result": {
-            "co2": 42,
-            "energy": 120,
-            "efficiency": "good"
-        }
-    }
+def test_analysis():
+    response = client.get("/analysis")
+
+    assert response.status_code == 200
+
+    data = response.json()
+
+    assert "result" in data
+
+    assert data["result"]["co2"] == 42
+    assert data["result"]["energy"] == 120
+    assert data["result"]["efficiency"] == "good"
