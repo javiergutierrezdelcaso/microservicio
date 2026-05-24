@@ -9,10 +9,10 @@ COPY ecoanalyzer/requirements.txt .
 
 # Instalar dependencias Python
 RUN pip install --no-cache-dir --upgrade \
-    pip \
-    setuptools \
-    "wheel>=0.46.2" \
-    "jaraco.context>=6.1.0"
+    pip==25.2 \
+    setuptools==80.9.0 \
+    wheel==0.46.2 \
+    jaraco.context==6.1.0
 
 # Copiar el código del microservicio
 COPY ecoanalyzer/ .
