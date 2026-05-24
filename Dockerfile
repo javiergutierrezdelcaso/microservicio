@@ -9,9 +9,9 @@ RUN apt-get update \
 
 COPY requirements.txt .
 
-RUN pip install --no-cache-dir --upgrade \
+RUN pip install --no-cache-dir --upgrade pip setuptools wheel \
     pip==25.2 \
-    setuptools==80.9.0 \
+    setuptools>=81.0.0 \
     wheel==0.46.2 \
     jaraco.context==6.1.0 \
     && pip install --no-cache-dir -r requirements.txt
