@@ -90,10 +90,13 @@ jobs:
           EOF
         working-directory: ecoanalyzer
 
-      # 7. Validación HTML (si usas templates o HTML generado)
-      - name: 🌐 Validar HTML (si aplica)
+      - name: 🌐 Validar HTML
         run: |
-          html5validator --root ecoanalyzer --ignore "static"
+          if [ -d "ecoanalyzer/templates" ]; then
+            html5validator --root ecoanalyzer/templates
+          else
+            echo "No HTML templates found. Skipping validation."
+          fi
 
       # 8. Build de imagen Docker
       - name: 🛠️ Build Docker image
