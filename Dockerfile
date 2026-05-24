@@ -8,7 +8,11 @@ WORKDIR /app
 COPY ecoanalyzer/requirements.txt .
 
 # Instalar dependencias Python
-RUN pip install --no-cache-dir -r requirements.txt
+RUN pip install --no-cache-dir --upgrade \
+    pip \
+    setuptools \
+    "wheel>=0.46.2" \
+    "jaraco.context>=6.1.0"
 
 # Copiar el código del microservicio
 COPY ecoanalyzer/ .
