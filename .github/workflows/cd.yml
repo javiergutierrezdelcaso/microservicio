@@ -4,34 +4,25 @@ permissions:
   contents: read
   packages: write
   id-token: write
-  
+
 env:
   IMAGE_NAME: ghcr.io/javiergutierrezdelcaso/microservicio/ecoanalyzer
 
 on:
-  push:
-    branches:
-      - develop
-      - main
+  workflow_run:
+    workflows: ["CI - Ecoanalyzer (Pro, Full Enterprise)"]
+    types:
+      - completed
 
 jobs:
   deploy:
-    # Solo ejecutar CD si el push es un MERGE de PR
-    if: startsWith(github.event.head_commit.message, 'Merge pull request')
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
 
-    name: "🚀 CD — Build, Push & Deploy to Azure"
     runs-on: ubuntu-latest
 
-    environment:
-      name: ${{ github.ref_name == 'main' && 'production' || 'preproduction' }}
-      url: ${{ steps.healthcheck.outputs.app-url }}
-
     steps:
-      # (todo tu CD igual que antes)
-      # 1. Checkout
-      - name: 📥 Checkout del repositorio
+      - name: Checkout
         uses: actions/checkout@v4
-
 
       # 2. Selección dinámica de entorno
       - name: 🧭 Seleccionar entorno (PRE o PRO)
