@@ -5,6 +5,9 @@ permissions:
   packages: write
   id-token: write
   
+env:
+  IMAGE_NAME: ghcr.io/javiergutierrezdelcaso/microservicio/ecoanalyzer
+
 on:
   push:
     branches:
