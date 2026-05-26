@@ -3,11 +3,13 @@ name: CI - Ecoanalyzer (Pro, Full Enterprise)
 on:
   push:
     branches:
-      - 'feature/**'
+      - develop
+      - main
   pull_request:
     branches:
       - develop
       - main
+
 
 
 
