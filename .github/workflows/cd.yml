@@ -45,32 +45,35 @@ jobs:
     name: Despliegue a PRE
     runs-on: ubuntu-latest
     needs: validacion
-    environment: pre       # Usa el entorno 'pre' para sus secretos
+    environment: pre       # Usa el entorno 'pre'
     outputs:
-      vm_ip: ${{ steps.get_ip.outputs.vm_ip }} # Exportamos la IP para el Job de integración
+      vm_ip: ${{ steps.get_ip.outputs.vm_ip }}
     steps:
       - name: Checkout código
         uses: actions/checkout@v4
 
-      # Buscamos la IP usando la URL directa del Workspace de PRE que permite este token
-      - name: Obtener IP de PRE desde Terraform Cloud
+      # 1. Autenticarse en Azure de forma segura
+      - name: Login en Azure
+        uses: azure/login@v2
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS1 }}
+
+      # 2. Consultar la IP real directamente a Azure (Cambia el nombre de la VM y el Resource Group por los tuyos)
+      - name: Obtener IP de PRE desde Azure
         id: get_ip
-        env:
-          TF_TOKEN: ${{ secrets.TF_API_TOKEN }}
         run: |
-          echo "Buscando IP en el estado de Infraestructura_Pre..."
-          IP_PRE=$(curl -s \
-            --header "Authorization: Bearer $TF_TOKEN" \
-            --header "Content-Type: application/vnd.api+json" \
-            "https://app.terraform.io/api/v2/organizations/ecoanalyzer-org/workspaces/Infraestructura_Pre/current-state-version-outputs" \
-            | jq -r '.. | objects | select(.name == "vm_public_ip") | .value // empty' | tr -d '"')
+          echo "Consultando la IP pública real en Azure..."
+          IP_PRE=$(az network public-ip show \
+            --resource-group rg-tfg-pre \
+            --name pip-tfg-pre \
+            --query ipAddress -o tsv)
 
           if [ -z "$IP_PRE" ] || [ "$IP_PRE" == "null" ]; then
-            echo "❌ Error: No se pudo obtener la IP. Verifica que el Output 'vm_public_ip' exista en Terraform."
+            echo "❌ Error: Azure no ha asignado todavía una IP pública a este recurso."
             exit 1
           fi
 
-          echo "ip_pre_detectada: $IP_PRE"
+          echo "IP de PRE detectada en Azure: $IP_PRE"
           echo "vm_ip=${IP_PRE}" >> $GITHUB_OUTPUT
 
       - name: Configurar clave SSH
@@ -129,7 +132,7 @@ jobs:
     name: Aprobación manual para PRO
     runs-on: ubuntu-latest
     needs: pruebas-integracion
-    environment: pro          # Entorno de GitHub con "Required reviewers"
+    environment: pro
 
     steps:
       - name: Aprobación concedida
@@ -142,31 +145,34 @@ jobs:
     name: Despliegue a PRO
     runs-on: ubuntu-latest
     needs: aprobacion-pro
-    environment: pro          # IMPORTANTE: Cambiado a entorno 'pro' para usar su Token de PRO
+    environment: pro
 
     steps:
       - name: Checkout código
         uses: actions/checkout@v4
 
-      # Buscamos la IP usando el token del Workspace de PRO
-      - name: Obtener IP de PRO desde Terraform Cloud
+      # 1. Autenticarse en Azure para el entorno PRO
+      - name: Login en Azure
+        uses: azure/login@v2
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS1 }}
+
+      # 2. Consultar la IP real de PRO directamente a Azure (Cambia los nombres por los tuyos de PRO)
+      - name: Obtener IP de PRO desde Azure
         id: get_ip_pro
-        env:
-          TF_TOKEN: ${{ secrets.TF_API_TOKEN }}
         run: |
-          echo "Buscando IP en el estado de Infraestructura_Pro..."
-          IP_PRO=$(curl -s \
-            --header "Authorization: Bearer $TF_TOKEN" \
-            --header "Content-Type: application/vnd.api+json" \
-            "https://app.terraform.io/api/v2/organizations/ecoanalyzer-org/workspaces/Infraestructura_Pro/current-state-version-outputs" \
-            | jq -r '.. | objects | select(.name == "vm_public_ip") | .value // empty' | tr -d '"')
+          echo "Consultando la IP pública real de PRO en Azure..."
+          IP_PRO=$(az network public-ip show \
+            --resource-group rg-tfg-pro \
+            --name pip-tfg-pro \
+            --query ipAddress -o tsv)
 
           if [ -z "$IP_PRO" ] || [ "$IP_PRO" == "null" ]; then
-            echo "❌ Error: No se pudo obtener la IP de PRO."
+            echo "❌ Error: Azure no ha asignado todavía una IP pública a PRO."
             exit 1
           fi
 
-          echo "ip_pro_detectada: $IP_PRO"
+          echo "IP de PRO detectada en Azure: $IP_PRO"
           echo "vm_ip=${IP_PRO}" >> $GITHUB_OUTPUT
 
       - name: Configurar clave SSH
