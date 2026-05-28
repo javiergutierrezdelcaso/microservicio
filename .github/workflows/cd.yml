@@ -25,7 +25,7 @@ jobs:
         run: |
           echo "=== OBTENIENDO CONFIGURACIÓN DE ENTORNO PRE ==="
           
-          # 1. Conseguir el ID interno del Workspace de PRE
+          # 1. Conseguir el ID interno del Workspace de PRE usando el nombre exacto de la UI
           WORKSPACE_PRE_ID=$(curl -s \
             --header "Authorization: Bearer $TF_TOKEN" \
             --header "Content-Type: application/vnd.api+json" \
@@ -33,22 +33,22 @@ jobs:
             | jq -r '.data.id // empty')
 
           if [ -z "$WORKSPACE_PRE_ID" ] || [ "$WORKSPACE_PRE_ID" == "null" ]; then
-            echo "❌ Error: No se pudo encontrar el Workspace 'Infraestructura_Pre'. Revisa si el nombre tiene mayúsculas/minúsculas distintas en la UI de Terraform Cloud."
+            echo "❌ Error: No se pudo encontrar el Workspace 'Infraestructura_Pre'."
             exit 1
           fi
           echo "ID de Workspace PRE encontrado: $WORKSPACE_PRE_ID"
 
-          # 2. Conseguir la IP de PRE usando su ID interno
+          # 2. Conseguir la IP de PRE buscando de forma profunda en el JSON
           IP_PRE=$(curl -s \
             --header "Authorization: Bearer $TF_TOKEN" \
             --header "Content-Type: application/vnd.api+json" \
             "https://app.terraform.io/api/v2/workspaces/$WORKSPACE_PRE_ID/current-state-version-outputs" \
-            | jq -r '.data[] | select(.attributes.name == "vm_public_ip") | .attributes.value // empty' | tr -d '"')
+            | jq -r '.. | objects | select(.name == "vm_public_ip") | .value' | tr -d '"')
 
 
           echo "=== OBTENIENDO CONFIGURACIÓN DE ENTORNO PRO ==="
 
-          # 3. Conseguir el ID interno del Workspace de PRO
+          # 3. Conseguir el ID interno del Workspace de PRO usando el nombre exacto de la UI
           WORKSPACE_PRO_ID=$(curl -s \
             --header "Authorization: Bearer $TF_TOKEN" \
             --header "Content-Type: application/vnd.api+json" \
@@ -61,12 +61,12 @@ jobs:
           fi
           echo "ID de Workspace PRO encontrado: $WORKSPACE_PRO_ID"
 
-          # 4. Conseguir la IP de PRO usando su ID interno
+          # 4. Conseguir la IP de PRO buscando de forma profunda en el JSON
           IP_PRO=$(curl -s \
             --header "Authorization: Bearer $TF_TOKEN" \
             --header "Content-Type: application/vnd.api+json" \
             "https://app.terraform.io/api/v2/workspaces/$WORKSPACE_PRO_ID/current-state-version-outputs" \
-            | jq -r '.data[] | select(.attributes.name == "vm_public_ip") | .attributes.value // empty' | tr -d '"')
+            | jq -r '.. | objects | select(.name == "vm_public_ip") | .value' | tr -d '"')
 
 
           echo "=== VALIDACIÓN FINAL ==="
@@ -74,7 +74,7 @@ jobs:
           echo "-> IP PRO extraída: [${IP_PRO}]"
 
           if [ -z "$IP_PRE" ] || [ -z "$IP_PRO" ]; then
-            echo "❌ Error Crítico: Las IPs se leyeron vacías. Asegúrate de que el output 'vm_public_ip' esté declarado en tu código de Terraform y guardado en el State actual."
+            echo "❌ Error Crítico: Las IPs se leyeron vacías. Revisa si el output 'vm_public_ip' está definido en tu código de Terraform y subido a Terraform Cloud."
             exit 1
           fi
 
