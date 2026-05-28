@@ -1,204 +1,49 @@
-name: CD — Despliegue PRE y PRO
-
-# Se dispara cuando se hace merge a main (evento push en rama protegida)
-on:
-  push:
-    branches:
-      - main
-
-jobs:
-  # ─────────────────────────────────────────────
+# ─────────────────────────────────────────────
   # JOB 0: Obtención dinámica de IPs desde Terraform Cloud
   # ─────────────────────────────────────────────
   resolver-ips:
     name: Obtener IPs desde Terraform Cloud
     runs-on: ubuntu-latest
+    # Forzamos un environment para que GitHub Actions libere el secreto TF_API_TOKEN
+    environment: pro
     outputs:
       ip_pre: ${{ steps.get_ips.outputs.ip_pre }}
       ip_pro: ${{ steps.get_ips.outputs.ip_pro }}
     steps:
       - name: Consultar API de Terraform Cloud
         id: get_ips
+        env:
+          TF_TOKEN: ${{ secrets.TF_API_TOKEN }}
         run: |
-          # 1. Resolver IP de PRE usando su Workspace correspondiente
-          WORKSPACE_PRE_ID=$(curl -s \
-            --header "Authorization: Bearer ${{ secrets.TF_API_TOKEN }}" \
-            --header "Content-Type: application/vnd.api+json" \
-            "https://app.terraform.io/api/v2/organizations/${{ vars.TF_ORGANIZATION }}/workspaces/Infraestructura_Pre" \
-            | jq -r '.data.id')
-
+          echo "Iniciando consulta simplificada a Terraform Cloud..."
+          
+          # 1. Obtener IP de PRE (Usando la ruta directa por nombre de Workspace)
+          echo "Solicitando IP de PRE..."
           IP_PRE=$(curl -s \
-            --header "Authorization: Bearer ${{ secrets.TF_API_TOKEN }}" \
+            --header "Authorization: Bearer $TF_TOKEN" \
             --header "Content-Type: application/vnd.api+json" \
-            "https://app.terraform.io/api/v2/workspaces/${WORKSPACE_PRE_ID}/current-state-version-outputs" \
-            | jq -r '.data[] | select(.attributes.name == "vm_public_ip") | .attributes.value' | tr -d '"')
+            "https://app.terraform.io/api/v2/organizations/ecoanalyzer-org/workspaces/Infraestructura_Pre/current-state-version-outputs" \
+            | jq -r '.data[] | select(.attributes.name == "vm_public_ip") | .attributes.value // empty' | tr -d '"')
 
-          # 2. Resolver IP de PRO usando su Workspace correspondiente
-          WORKSPACE_PRO_ID=$(curl -s \
-            --header "Authorization: Bearer ${{ secrets.TF_API_TOKEN }}" \
-            --header "Content-Type: application/vnd.api+json" \
-            "https://app.terraform.io/api/v2/organizations/${{ vars.TF_ORGANIZATION }}/workspaces/Infraestructura_Pro" \
-            | jq -r '.data.id')
-
+          # 2. Obtener IP de PRO
+          echo "Solicitando IP de PRO..."
           IP_PRO=$(curl -s \
-            --header "Authorization: Bearer ${{ secrets.TF_API_TOKEN }}" \
+            --header "Authorization: Bearer $TF_TOKEN" \
             --header "Content-Type: application/vnd.api+json" \
-            "https://app.terraform.io/api/v2/workspaces/${WORKSPACE_PRO_ID}/current-state-version-outputs" \
-            | jq -r '.data[] | select(.attributes.name == "vm_public_ip") | .attributes.value' | tr -d '"')
+            "https://app.terraform.io/api/v2/organizations/ecoanalyzer-org/workspaces/Infraestructura_Pro/current-state-version-outputs" \
+            | jq -r '.data[] | select(.attributes.name == "vm_public_ip") | .attributes.value // empty' | tr -d '"')
 
-          # Validaciones de seguridad por si las IPs vienen vacías
-          if [ -z "$IP_PRE" ] || [ "$IP_PRE" == "null" ] || [ -z "$IP_PRO" ] || [ "$IP_PRO" == "null" ]; then
-            echo "Error: No se pudo recuperar alguna de las IPs de Terraform Cloud."
+          # Validaciones e impresión de respuestas para depuración
+          echo "Resultados obtenidos:"
+          echo "-> IP PRE: [${IP_PRE}]"
+          echo "-> IP PRO: [${IP_PRO}]"
+
+          if [ -z "$IP_PRE" ] || [ -z "$IP_PRO" ]; then
+            echo "❌ Error Crítico: No se pudo obtener una o ambas IPs. Verifica que el Token sea correcto y que el Output 'vm_public_ip' exista en Terraform Cloud."
             exit 1
           fi
 
-          # Exportar como outputs del Job
+          # Guardar outputs de GitHub Actions
           echo "ip_pre=${IP_PRE}" >> $GITHUB_OUTPUT
           echo "ip_pro=${IP_PRO}" >> $GITHUB_OUTPUT
-          echo "IP de PRE detectada: ${IP_PRE}"
-          echo "IP de PRO detectada: ${IP_PRO}"
-
-  # ─────────────────────────────────────────────
-  # JOB 1: Las mismas validaciones que CI
-  # ─────────────────────────────────────────────
-  validacion:
-    name: Compilación, análisis y pruebas
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout código
-        uses: actions/checkout@v4
-
-      - name: Configurar Python 3.11
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.11"
-          cache: "pip"
-
-      - name: Instalar dependencias
-        run: pip install -r requirements.txt
-
-      - name: Análisis de código (flake8)
-        run: |
-          make install-dev || pip install flake8
-          flake8 . --max-line-length=120 --exclude=.git,__pycache__,test_main.py
-
-      - name: Pruebas y cobertura
-        run: |
-          pip install pytest pytest-cov
-          pytest test_main.py -v \
-            --cov=main \
-            --cov-report=term-missing \
-            --cov-fail-under=80
-
-  # ─────────────────────────────────────────────
-  # JOB 2: Despliegue a PRE
-  # ─────────────────────────────────────────────
-  despliegue-pre:
-    name: Despliegue a PRE
-    runs-on: ubuntu-latest
-    needs: [validacion, resolver-ips]
-    environment: pre
-
-    steps:
-      - name: Checkout código
-        uses: actions/checkout@v4
-
-      - name: Configurar clave SSH
-        run: |
-          mkdir -p ~/.ssh
-          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_rsa_tfg
-          chmod 600 ~/.ssh/id_rsa_tfg
-          ssh-keyscan -H ${{ needs.resolver-ips.outputs.ip_pre }} >> ~/.ssh/known_hosts
-
-      - name: Copiar código a la VM de PRE
-        run: |
-          scp -i ~/.ssh/id_rsa_tfg main.py requirements.txt \
-            azureuser@${{ needs.resolver-ips.outputs.ip_pre }}:/opt/microservicio/
-
-      - name: Instalar dependencias y reiniciar servicio en PRE
-        run: |
-          ssh -i ~/.ssh/id_rsa_tfg azureuser@${{ needs.resolver-ips.outputs.ip_pre }} << 'EOF'
-            cd /opt/microservicio
-            ./venv/bin/pip install -r requirements.txt
-            sudo systemctl restart microservicio
-            sudo systemctl status microservicio
-          EOF
-
-  # ─────────────────────────────────────────────
-  # JOB 3: Pruebas de integración en PRE
-  # ─────────────────────────────────────────────
-  pruebas-integracion:
-    name: Pruebas de integración en PRE
-    runs-on: ubuntu-latest
-    needs: [despliegue-pre, resolver-ips]
-    environment: pre 
-    steps:
-      - name: Esperar a que el servicio arranque
-        run: sleep 10
-
-      - name: Health check PRE
-        run: |
-          curl --fail --retry 5 --retry-delay 5 \
-            http://${{ needs.resolver-ips.outputs.ip_pre }}:8000/health
-
-      - name: Prueba de integración — crear item
-        run: |
-          curl --fail -X POST \
-            http://${{ needs.resolver-ips.outputs.ip_pre }}:8000/items \
-            -H "Content-Type: application/json" \
-            -d '{"nombre":"test-integracion","precio":1.0}'
-
-      - name: Prueba de integración — listar items
-        run: |
-          curl --fail http://${{ needs.resolver-ips.outputs.ip_pre }}:8000/items
-
-  # ─────────────────────────────────────────────
-  # JOB 4: Validación humana (aprobación manual)
-  # ─────────────────────────────────────────────
-  aprobacion-pro:
-    name: Aprobación manual para PRO
-    runs-on: ubuntu-latest
-    needs: pruebas-integracion
-    environment: pro          # Entorno de GitHub con "Required reviewers" configurado
-
-    steps:
-      - name: Aprobación concedida
-        run: echo "Despliegue a PRO aprobado. Iniciando..."
-
-  # ─────────────────────────────────────────────
-  # JOB 5: Despliegue a PRO
-  # ─────────────────────────────────────────────
-  despliegue-pro:
-    name: Despliegue a PRO
-    runs-on: ubuntu-latest
-    needs: [aprobacion-pro, resolver-ips]
-
-    steps:
-      - name: Checkout código
-        uses: actions/checkout@v4
-
-      - name: Configurar clave SSH
-        run: |
-          mkdir -p ~/.ssh
-          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_rsa_tfg
-          chmod 600 ~/.ssh/id_rsa_tfg
-          ssh-keyscan -H ${{ needs.resolver-ips.outputs.ip_pro }} >> ~/.ssh/known_hosts
-
-      - name: Copiar código a la VM de PRO
-        run: |
-          scp -i ~/.ssh/id_rsa_tfg main.py requirements.txt \
-            azureuser@${{ needs.resolver-ips.outputs.ip_pro }}:/opt/microservicio/
-
-      - name: Instalar dependencias y reiniciar servicio en PRO
-        run: |
-          ssh -i ~/.ssh/id_rsa_tfg azureuser@${{ needs.resolver-ips.outputs.ip_pro }} << 'EOF'
-            cd /opt/microservicio
-            ./venv/bin/pip install -r requirements.txt
-            sudo systemctl restart microservicio
-            sudo systemctl status microservicio
-          EOF
-
-      - name: Health check PRO
-        run: |
-          curl --fail --retry 5 --retry-delay 5 \
-            http://${{ needs.resolver-ips.outputs.ip_pro }}:8000/health
+          echo "✅ IPs guardadas en el output del pipeline con éxito."
