@@ -8,6 +8,7 @@ on:
 jobs:
   # ─────────────────────────────────────────────
   # JOB 1: Validaciones CI
+  
   # ─────────────────────────────────────────────
   validacion:
     name: Compilación, análisis y pruebas
