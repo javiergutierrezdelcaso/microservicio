@@ -2,8 +2,14 @@ from fastapi import FastAPI, HTTPException
 from fastapi.responses import HTMLResponse
 from pydantic import BaseModel, Field
 from typing import Optional
+from azure.identity import DefaultAzureCredential
+from azure.keyvault.secrets import SecretClient
 import datetime
 import os
+
+KEY_VAULT_URI = os.getenv("KEY_VAULT_URI", "")
+APP_SECRET = "no-configurado"
+
 
 app = FastAPI(
     title="EcoAnalyzer API",
@@ -12,6 +18,15 @@ app = FastAPI(
 )
 
 ENTORNO = os.getenv("ENTORNO", "PRE")
+KEY_VAULT_URI = os.getenv("KEY_VAULT_URI", "")
+APP_SECRET = "no-configurado"
+if KEY_VAULT_URI:
+    try:
+        credential = DefaultAzureCredential()
+        client = SecretClient(vault_url=KEY_VAULT_URI, credential=credential)
+        APP_SECRET = client.get_secret("eco-api-secret").value
+    except Exception as e:
+        APP_SECRET = f"error-al-leer-kv: {e}"
 
 # ─────────────────────────────────────────────
 # Modelos
@@ -229,12 +244,10 @@ def landing():
 def health():
     return {
         "status": "ok",
-        "servicio": "ecoanalyzer",
         "entorno": ENTORNO,
-        "version": "1.0.0",
+        "kv_conectado": KEY_VAULT_URI != "",
         "timestamp": datetime.datetime.utcnow().isoformat()
     }
-
 
 # ─────────────────────────────────────────────
 # Categorías
